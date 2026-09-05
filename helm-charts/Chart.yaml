@@ -1,0 +1,6 @@
+apiVersion: v2
+name: plumber
+description: Plumber (omnirai) booking/platform SaaS - backend, frontend (reuses existing postgres)
+type: application
+version: 1.0.0
+appVersion: 1.0.0

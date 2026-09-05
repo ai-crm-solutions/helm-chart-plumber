@@ -1,0 +1,49 @@
+appName: plumber
+namespace: plumber
+replicaCount: 1
+
+image:
+  repository: 192.168.0.17:5000/repository
+  pullPolicy: Always
+  tag: "latest"
+
+# Postgres (bundled) — DISABLED: plumber reuses the existing postgres StatefulSet in ns plumber.
+postgresql:
+  enabled: false
+  image: registry-1.docker.io/bitnami/postgresql:latest
+  database: plumber
+  username: plumber
+  password: PlumberPostgres2026!
+  storageSize: 5Gi
+
+# ── Vault (secrets injection) ──
+vault:
+  enabled: false
+  role: plumber
+  secretPath: "KV/data/Plumber"
+
+# ── Backend (booking service) ──
+backend:
+  image: "192.168.0.17:5000/repository/plumber-be"
+  servicePort: 80
+  targetPort: 8000
+
+# ── Frontend ──
+frontend:
+  image: "192.168.0.17:5000/repository/plumber-fe"
+  servicePort: 80
+  targetPort: 80
+
+# ── Istio ──
+istio:
+  enabled: true
+  gatewayName: plumber-https-gw
+  gatewayNamespace: istio-ingress
+  host: "plumber.omnirai.ai"
+  credentialName: "plumber-tls"
+
+resources:
+  requests:
+    memory: 256Mi
+  limits:
+    memory: 512Mi

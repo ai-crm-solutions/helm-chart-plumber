@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plumber-be
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: plumber-be
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: plumber-be
+  template:
+    metadata:
+      labels:
+        app: plumber-be
+      annotations:
+        {{- if .Values.vault.enabled }}
+        # --- Vault Agent Injector ---
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "{{ .Values.vault.role }}"
+        vault.hashicorp.com/agent-pre-populate: "true"
+        vault.hashicorp.com/agent-inject-secret-app: "{{ .Values.vault.secretPath }}"
+        vault.hashicorp.com/agent-inject-template-app: |
+          {{`{{- with secret "`}}{{ .Values.vault.secretPath }}{{`" -}}`}}
+          {{`export DATABASE_URL="{{ .Data.data.DATABASE_URL }}"`}}
+          {{`export KEYCLOAK_URL="{{ .Data.data.KEYCLOAK_URL }}"`}}
+          {{`export KEYCLOAK_REALM="{{ .Data.data.KEYCLOAK_REALM }}"`}}
+          {{`export KEYCLOAK_CLIENT_ID="{{ .Data.data.KEYCLOAK_CLIENT_ID }}"`}}
+          {{`export KEYCLOAK_ADMIN_USER="{{ .Data.data.KEYCLOAK_ADMIN_USER }}"`}}
+          {{`export KEYCLOAK_ADMIN_PASSWORD="{{ .Data.data.KEYCLOAK_ADMIN_PASSWORD }}"`}}
+          {{`export KEYCLOAK_TENANT_USER_PASSWORD="{{ .Data.data.KEYCLOAK_TENANT_USER_PASSWORD }}"`}}
+          {{`export STRIPE_SECRET_KEY="{{ .Data.data.STRIPE_SECRET_KEY }}"`}}
+          {{`export STRIPE_PUBLISHABLE_KEY="{{ .Data.data.STRIPE_PUBLISHABLE_KEY }}"`}}
+          {{`export STRIPE_WEBHOOK_SECRET="{{ .Data.data.STRIPE_WEBHOOK_SECRET }}"`}}
+          {{`export GEMINI_API_KEY="{{ .Data.data.GEMINI_API_KEY }}"`}}
+          {{`export GOOGLE_CLIENT_ID="{{ .Data.data.GOOGLE_CLIENT_ID }}"`}}
+          {{`export GOOGLE_CLIENT_SECRET="{{ .Data.data.GOOGLE_CLIENT_SECRET }}"`}}
+          {{`export SMTP_HOST="{{ .Data.data.SMTP_HOST }}"`}}
+          {{`export SMTP_PASSWORD="{{ .Data.data.SMTP_PASSWORD }}"`}}
+          {{`export SMTP_USER="{{ .Data.data.SMTP_USER }}"`}}
+          {{`{{- end }}`}}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName }}
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.backend.targetPort }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.backend.targetPort }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.backend.targetPort }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: {{ .Values.resources.requests.memory }}
+            limits:
+              memory: {{ .Values.resources.limits.memory }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plumber-be-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: plumber-be
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.backend.servicePort }}
+      targetPort: {{ .Values.backend.targetPort }}
+  selector:
+    app: plumber-be

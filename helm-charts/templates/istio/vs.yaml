@@ -1,0 +1,39 @@
+{{- if .Values.istio.enabled }}
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: plumber-vs
+  namespace: {{ .Values.istio.gatewayNamespace }}
+spec:
+  gateways:
+  - {{ .Values.istio.gatewayNamespace }}/{{ .Values.istio.gatewayName }}
+  hosts:
+  - {{ .Values.istio.host }}
+  http:
+  # ---------- Backend API ----------
+  - match:
+    - uri:
+        prefix: /api/v1
+    - uri:
+        prefix: /health
+    - uri:
+        prefix: /docs
+    - uri:
+        prefix: /openapi
+    - uri:
+        prefix: /redoc
+    route:
+    - destination:
+        host: plumber-be-service.{{ .Values.namespace }}.svc.cluster.local
+        port:
+          number: {{ .Values.backend.servicePort | default 80 }}
+  # ---------- Frontend (catch-all) ----------
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: plumber-fe.{{ .Values.namespace }}.svc.cluster.local
+        port:
+          number: {{ .Values.frontend.servicePort | default 80 }}
+{{- end }}
