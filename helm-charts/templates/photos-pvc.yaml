@@ -1,0 +1,30 @@
+{{- if .Values.photos.enabled }}
+# Customer photo uploads for AI quotes.
+#
+# The backend writes to /data/photos — see app/services/photo_store.py:
+#   PHOTO_ROOT = Path(os.getenv("PHOTO_ROOT", "/data/photos"))
+#   layout: /data/photos/<tenant_id>/<job_request_id>/<photo_id>.jpg
+#
+# Without this PVC the uploads land on the container's ephemeral filesystem:
+# they are lost on every pod restart and the node disk grows unbounded.
+# On-prem this was the `plumber-photos` PVC (20Gi) mounted at the same path.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.namePrefix }}-photos
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.namePrefix }}-be
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.photos.storageClass }}
+  # NOTE: must NOT be standard-rwo (pd-balanced) — that counts against the
+  # SSD_TOTAL_GB quota, which is exhausted in us-central1. `standard`
+  # (pd-standard) draws on DISKS_TOTAL_GB instead.
+  storageClassName: {{ .Values.photos.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.photos.size }}
+{{- end }}

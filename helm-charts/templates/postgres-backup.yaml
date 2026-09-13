@@ -1,0 +1,108 @@
+{{- if .Values.backup.enabled }}
+# Daily logical backup of this namespace's Postgres, uploaded to GCS.
+#
+# Modelled on helm-chart-postgres/postgres/templates/backup-cronjob.yaml (which
+# covers BEO) because these platform charts define their own inline Postgres
+# StatefulSet instead of using that shared chart, so they had NO backups at all.
+#
+# Deliberate details carried over from the working BEO cronjob:
+#   * google/cloud-sdk:alpine has gsutil but NOT pg_dump -> apk add it
+#   * fail loudly rather than uploading an empty dump (a missing pg_dump used to
+#     produce a 20-byte file that still reported success)
+#   * sidecar.istio.io/inject: "false" so the job is not blocked by a sidecar
+#   * `{ ls ... || true; }` because `set -o pipefail` + a non-matching glob
+#     aborted the retention step
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-backup
+  namespace: {{ .Values.namespace }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.backup.storageClass }}
+  storageClassName: {{ .Values.backup.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.backup.pvc.size }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: pg-dump
+              image: {{ .Values.backup.image }}
+              command:
+                - sh
+                - -c
+                - |
+                  set -o pipefail
+                  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+                  BACKUP_FILE="/backup/{{ .Values.postgresql.database }}-$${TIMESTAMP}.sql.gz"
+
+                  echo "Starting backup of {{ .Values.postgresql.database }}..."
+                  if ! command -v pg_dump >/dev/null 2>&1; then
+                    echo "Installing postgresql-client..."
+                    apk add --no-cache postgresql-client >/dev/null 2>&1 || { echo "pg_dump unavailable - backup FAILED"; exit 1; }
+                  fi
+                  PGPASSWORD="$DB_PASSWORD" pg_dump \
+                    -h {{ .Values.backup.dbHost }} \
+                    -U {{ .Values.postgresql.username }} \
+                    {{ .Values.postgresql.database }} | gzip > "$BACKUP_FILE"
+
+                  if [ $? -eq 0 ] && [ -s "$BACKUP_FILE" ]; then
+                    echo "Backup saved: $BACKUP_FILE"
+                    ls -lh "$BACKUP_FILE"
+                  else
+                    echo "Backup FAILED"
+                    exit 1
+                  fi
+
+                  echo "Uploading to GCS..."
+                  gcloud auth activate-service-account --key-file=/etc/gcs-key/key.json 2>/dev/null
+                  gsutil cp "$BACKUP_FILE" "gs://{{ .Values.backup.gcsBucket }}/postgres/$(basename $BACKUP_FILE)"
+                  echo "Uploaded to gs://{{ .Values.backup.gcsBucket }}/postgres/$(basename $BACKUP_FILE)"
+
+                  # `|| true` guard: with set -o pipefail a non-matching glob
+                  # would abort this step and fail an otherwise good backup.
+                  { find /backup -name "{{ .Values.postgresql.database }}-*.sql.gz" -type f -mtime +{{ .Values.backup.retentionDays }} -delete || true; }
+                  echo "Cleaned up"
+              env:
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.postgresql.existingSecret }}
+                      key: {{ .Values.postgresql.existingSecretPasswordKey | default "POSTGRES_PASSWORD" }}
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+                - name: gcs-key
+                  mountPath: /etc/gcs-key
+                  readOnly: true
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: postgres-backup
+            - name: gcs-key
+              secret:
+                secretName: {{ .Values.backup.gcsSecret }}
+{{- end }}

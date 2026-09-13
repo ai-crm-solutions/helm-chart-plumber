@@ -49,6 +49,36 @@ postgresql:
   existingSecret: postgres-trades
   existingSecretPasswordKey: POSTGRES_PASSWORD
 
+# ── Customer photo uploads ──
+# The backend writes uploaded job photos to /data/photos, which is where the AI
+# quote pipeline reads them from (app/services/photo_store.py -> PHOTO_ROOT).
+# On-prem this was the `plumber-photos` PVC (20Gi) mounted at the same path.
+# Without it, uploads go to the container's ephemeral filesystem and are lost
+# on every pod restart.
+photos:
+  enabled: true
+  mountPath: /data/photos
+  size: 20Gi
+  # pd-standard, for the same SSD_TOTAL_GB quota reason as postgres above.
+  storageClass: standard
+
+# ── Postgres backups ──
+# These platform charts define their own inline Postgres StatefulSet rather than
+# using helm-chart-postgres (which is what gives BEO its backup CronJob), so
+# before this they had NO backups. Uploads to the same bucket BEO uses.
+# Needs a `gcs-backup-credentials` Secret (key: key.json) in this namespace.
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  retentionDays: 30
+  gcsBucket: beo-crm-backups-1784041582
+  gcsSecret: gcs-backup-credentials
+  image: google/cloud-sdk:alpine
+  dbHost: postgres
+  storageClass: standard
+  pvc:
+    size: 20Gi
+
 # ── Vault (secrets injection) ──
 vault:
   enabled: true

@@ -32,6 +32,10 @@ spec:
         vault.hashicorp.com/agent-inject-template-app: |
           {{`{{- with secret "`}}{{ .Values.vault.secretPath }}{{`" -}}`}}
           {{`export DATABASE_URL="{{ .Data.data.DATABASE_URL }}"`}}
+          # Must default to false: the backend's verify_token() treats DEBUG + no
+          # Authorization header as a valid anonymous user (mock dev-admin
+          # claims), which is an auth bypass in production.
+          {{`export DEBUG="{{ .Data.data.DEBUG | default "false" }}"`}}
           {{`export KEYCLOAK_URL="{{ .Data.data.KEYCLOAK_URL }}"`}}
           {{`export KEYCLOAK_REALM="{{ .Data.data.KEYCLOAK_REALM }}"`}}
           {{`export KEYCLOAK_CLIENT_ID="{{ .Data.data.KEYCLOAK_CLIENT_ID }}"`}}
@@ -101,6 +105,20 @@ spec:
               memory: {{ .Values.resources.requests.memory }}
             limits:
               memory: {{ .Values.resources.limits.memory }}
+          {{- if .Values.photos.enabled }}
+          # Customer photo uploads (see templates/photos-pvc.yaml). Without this
+          # mount the app writes to the container's ephemeral filesystem and
+          # every uploaded photo is lost on restart.
+          volumeMounts:
+            - name: photos
+              mountPath: {{ .Values.photos.mountPath }}
+          {{- end }}
+      {{- if .Values.photos.enabled }}
+      volumes:
+        - name: photos
+          persistentVolumeClaim:
+            claimName: {{ .Values.namePrefix }}-photos
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service
