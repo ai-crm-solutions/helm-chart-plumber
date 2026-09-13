@@ -32,3 +32,10 @@ istio:
   # owns. Without an explicit dev name this release would OVERWRITE
   # istio-system/trades-vs and repoint plumber.omnirai.ai at the dev backend.
   vsName: "trades-dev-vs"
+
+# CRITICAL: dev must use its OWN image tag. Both releases defaulted to
+# `trades-fe:latest`, so rebuilding for dev would have repointed PRODUCTION at
+# the dev realm and the dev API. The frontend bakes Keycloak + API config at
+# build time (Vite), so dev genuinely needs a separate image.
+frontend:
+  image: "us-central1-docker.pkg.dev/beo-crm-3c9771fd/beo-docker/trades-fe-dev"
