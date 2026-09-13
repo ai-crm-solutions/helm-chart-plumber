@@ -7,6 +7,17 @@ metadata:
     app: {{ .Values.namePrefix }}-be
 spec:
   replicas: {{ .Values.replicaCount }}
+  {{- if .Values.photos.enabled }}
+  # Recreate, NOT RollingUpdate. The photos PVC is ReadWriteOnce and this
+  # deployment runs a single replica, so RollingUpdate deadlocks:
+  #   * the new pod cannot attach the volume while the old pod still holds it
+  #     ("Multi-Attach error ... Volume is already used by pod(s) ...")
+  #   * and the old pod is not terminated until the new one is Ready
+  # Result: every rollout hangs in Init forever. Recreate terminates the old pod
+  # first. Brief downtime is unavoidable for one replica on a RWO volume.
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       app: {{ .Values.namePrefix }}-be
@@ -37,6 +48,10 @@ spec:
           # claims), which is an auth bypass in production. NOTE: this Vault
           # Agent's Consul Template has no `default` function - use if/else.
           {{`export DEBUG="{{ if .Data.data.DEBUG }}{{ .Data.data.DEBUG }}{{ else }}false{{ end }}"`}}
+          # PUBLIC_BASE_URL is baked into the image as a production default, so dev
+          # must override it or tenant portal links and Stripe redirects send dev
+          # users to production. Same if/else guard as DEBUG.
+          {{`export PUBLIC_BASE_URL="{{ if .Data.data.PUBLIC_BASE_URL }}{{ .Data.data.PUBLIC_BASE_URL }}{{ else }}https://plumber.omnirai.ai{{ end }}"`}}
           {{`export KEYCLOAK_URL="{{ .Data.data.KEYCLOAK_URL }}"`}}
           {{`export KEYCLOAK_REALM="{{ .Data.data.KEYCLOAK_REALM }}"`}}
           {{`export KEYCLOAK_CLIENT_ID="{{ .Data.data.KEYCLOAK_CLIENT_ID }}"`}}
