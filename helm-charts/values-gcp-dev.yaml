@@ -6,8 +6,10 @@
 #
 # Only the differences from values.yaml live here.
 #
-# Dev has no public hostname: there is no shared-gateway host for it, so reach
-# the app with `kubectl port-forward` in ns trades-dev instead of DNS.
+# Dev now has its own public hostname (dev-plumber.omnirai.ai), routed by the
+# shared gateway owned by helm-chart-keycloak. That chart must also list the host
+# in authHost.appCertificates to issue its certificate - both sides are required.
+# `kubectl port-forward` in ns trades-dev still works as a fallback.
 # ─────────────────────────────────────────────────────────────────────────────
 
 namespace: trades-dev
@@ -22,4 +24,11 @@ postgresql:
   existingSecret: postgres-trades-dev
 
 istio:
-  enabled: false
+  enabled: true
+  host: "dev-plumber.omnirai.ai"
+  credentialName: "omnirai-apps-dev-plumber-tls"
+  # CRITICAL: the VirtualService is rendered into istio-system (the gateway's
+  # namespace) and defaults to "<namePrefix>-vs", which the prod release already
+  # owns. Without an explicit dev name this release would OVERWRITE
+  # istio-system/trades-vs and repoint plumber.omnirai.ai at the dev backend.
+  vsName: "trades-dev-vs"
