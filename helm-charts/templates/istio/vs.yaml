@@ -2,7 +2,7 @@
 apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
-  name: plumber-vs
+  name: {{ .Values.namePrefix }}-vs
   namespace: {{ .Values.istio.gatewayNamespace }}
 spec:
   gateways:
@@ -24,7 +24,7 @@ spec:
         prefix: /redoc
     route:
     - destination:
-        host: plumber-be-service.{{ .Values.namespace }}.svc.cluster.local
+        host: {{ .Values.namePrefix }}-be-service.{{ .Values.namespace }}.svc.cluster.local
         port:
           number: {{ .Values.backend.servicePort | default 80 }}
   # ---------- Frontend (catch-all) ----------
@@ -33,7 +33,7 @@ spec:
         prefix: /
     route:
     - destination:
-        host: plumber-fe.{{ .Values.namespace }}.svc.cluster.local
+        host: {{ .Values.namePrefix }}-fe.{{ .Values.namespace }}.svc.cluster.local
         port:
           number: {{ .Values.frontend.servicePort | default 80 }}
 {{- end }}

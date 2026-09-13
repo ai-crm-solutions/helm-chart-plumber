@@ -1,20 +1,24 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: plumber-fe
+  name: {{ .Values.namePrefix }}-fe
   namespace: {{ .Values.namespace }}
   labels:
-    app: plumber-fe
+    app: {{ .Values.namePrefix }}-fe
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: plumber-fe
+      app: {{ .Values.namePrefix }}-fe
   template:
     metadata:
       labels:
-        app: plumber-fe
+        app: {{ .Values.namePrefix }}-fe
     spec:
+      imagePullSecrets:
+{{- range .Values.imagePullSecrets }}
+        - name: {{ . }}
+{{- end }}
       containers:
         - name: frontend
           image: "{{ .Values.frontend.image }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -44,14 +48,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: plumber-fe
+  name: {{ .Values.namePrefix }}-fe
   namespace: {{ .Values.namespace }}
   labels:
-    app: plumber-fe
+    app: {{ .Values.namePrefix }}-fe
 spec:
   type: ClusterIP
   ports:
     - port: {{ .Values.frontend.servicePort }}
       targetPort: {{ .Values.frontend.targetPort }}
   selector:
-    app: plumber-fe
+    app: {{ .Values.namePrefix }}-fe

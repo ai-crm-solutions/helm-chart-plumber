@@ -1,25 +1,33 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: plumber-be
+  name: {{ .Values.namePrefix }}-be
   namespace: {{ .Values.namespace }}
   labels:
-    app: plumber-be
+    app: {{ .Values.namePrefix }}-be
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: plumber-be
+      app: {{ .Values.namePrefix }}-be
   template:
     metadata:
       labels:
-        app: plumber-be
+        app: {{ .Values.namePrefix }}-be
       annotations:
         {{- if .Values.vault.enabled }}
         # --- Vault Agent Injector ---
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "{{ .Values.vault.role }}"
         vault.hashicorp.com/agent-pre-populate: "true"
+        # The injector reserves 250m CPU for vault-agent AND another 250m for
+        # vault-agent-init by default. Across 4 platforms x prod+dev that is
+        # ~4 cores of pure sidecar reservation, which over-committed the cluster
+        # and made new pods unschedulable. The agent is idle almost all the time.
+        vault.hashicorp.com/agent-requests-cpu: "10m"
+        vault.hashicorp.com/agent-limits-cpu: "100m"
+        vault.hashicorp.com/agent-init-requests-cpu: "10m"
+        vault.hashicorp.com/agent-init-limits-cpu: "100m"
         vault.hashicorp.com/agent-inject-secret-app: "{{ .Values.vault.secretPath }}"
         vault.hashicorp.com/agent-inject-template-app: |
           {{`{{- with secret "`}}{{ .Values.vault.secretPath }}{{`" -}}`}}
@@ -37,12 +45,37 @@ spec:
           {{`export GOOGLE_CLIENT_ID="{{ .Data.data.GOOGLE_CLIENT_ID }}"`}}
           {{`export GOOGLE_CLIENT_SECRET="{{ .Data.data.GOOGLE_CLIENT_SECRET }}"`}}
           {{`export SMTP_HOST="{{ .Data.data.SMTP_HOST }}"`}}
+          {{`export SMTP_PORT="{{ .Data.data.SMTP_PORT }}"`}}
+          {{`export SMTP_FROM="{{ .Data.data.SMTP_FROM }}"`}}
           {{`export SMTP_PASSWORD="{{ .Data.data.SMTP_PASSWORD }}"`}}
           {{`export SMTP_USER="{{ .Data.data.SMTP_USER }}"`}}
           {{`{{- end }}`}}
         {{- end }}
     spec:
-      serviceAccountName: {{ .Values.serviceAccountName }}
+      imagePullSecrets:
+{{- range .Values.imagePullSecrets }}
+        - name: {{ . }}
+{{- end }}
+      serviceAccountName: {{ .Values.serviceAccount.name | default "default" }}
+      {{- if .Values.postgresql.enabled }}
+      initContainers:
+        # The app creates its schema + seed data during startup. Without this it
+        # races Postgres's first-time initdb, fails the connection, and still
+        # reports healthy - but with an EMPTY database. Wait for the server to
+        # accept connections first.
+        - name: wait-for-postgres
+          image: {{ .Values.postgresql.image }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h postgres -p 5432 -U {{ .Values.postgresql.username }} >/dev/null 2>&1; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
+              echo "postgres is ready"
+      {{- end }}
       containers:
         - name: backend
           image: "{{ .Values.backend.image }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -72,14 +105,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: plumber-be-service
+  name: {{ .Values.namePrefix }}-be-service
   namespace: {{ .Values.namespace }}
   labels:
-    app: plumber-be
+    app: {{ .Values.namePrefix }}-be
 spec:
   type: ClusterIP
   ports:
     - port: {{ .Values.backend.servicePort }}
       targetPort: {{ .Values.backend.targetPort }}
   selector:
-    app: plumber-be
+    app: {{ .Values.namePrefix }}-be

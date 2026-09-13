@@ -1,0 +1,25 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Trade by omnirai — DEV overlay on top of values.yaml (namespace: trades-dev)
+#
+#   helm upgrade --install trades-dev ./helm-charts -n trades-dev \
+#     -f ./helm-charts/values-gcp-dev.yaml
+#
+# Only the differences from values.yaml live here.
+#
+# Dev has no public hostname: there is no shared-gateway host for it, so reach
+# the app with `kubectl port-forward` in ns trades-dev instead of DNS.
+# ─────────────────────────────────────────────────────────────────────────────
+
+namespace: trades-dev
+
+# Separate Vault path/role so dev secrets can never touch production data.
+vault:
+  role: trades-dev
+  secretPath: "KV/data/Trades-Dev"
+
+postgresql:
+  storageSize: 5Gi
+  existingSecret: postgres-trades-dev
+
+istio:
+  enabled: false

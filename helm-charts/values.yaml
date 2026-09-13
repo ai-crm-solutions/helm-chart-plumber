@@ -1,46 +1,82 @@
-appName: plumber
-namespace: plumber
+# ─────────────────────────────────────────────────────────────────────────────
+# Trade by omnirai — PRODUCTION defaults (GKE, namespace: trades)
+#
+#   helm upgrade --install trades ./helm-charts -n trades
+#   helm upgrade --install trades-dev ./helm-charts -n trades-dev \
+#     -f ./helm-charts/values-gcp-dev.yaml
+#
+# Everything runs on GCP. Nothing here targets the on-prem cluster.
+# ─────────────────────────────────────────────────────────────────────────────
+appName: trades
+# Prefix for every generated workload/service name (trades-be, trades-fe, ...).
+namePrefix: trades
+namespace: trades
 replicaCount: 1
 
+# Service account for the backend. Must be permitted by the Vault k8s auth role.
+serviceAccount:
+  create: true
+  name: trades-app
+
 image:
-  repository: 192.168.0.17:5000/repository
   pullPolicy: Always
   tag: "latest"
 
-# Postgres (bundled) — DISABLED: plumber reuses the existing postgres StatefulSet in ns plumber.
+# Artifact Registry credentials. The GKE node pool's OAuth scopes are locked down
+# to monitoring + logging.write, so the node identity CANNOT authenticate to
+# Artifact Registry - every image pull needs this Secret (same one BEO uses).
+imagePullSecrets:
+  - artifact-registry
+
+# Postgres — each namespace runs its own single-node instance on GKE.
 postgresql:
-  enabled: false
-  image: registry-1.docker.io/bitnami/postgresql:latest
-  database: plumber
-  username: plumber
-  password: PlumberPostgres2026!
-  storageSize: 5Gi
+  enabled: true
+  image: docker.io/postgres:15
+  database: trades
+  username: trades
+  storageSize: 20Gi
+  # HDD (pd-standard), NOT `standard-rwo`. The region's SSD_TOTAL_GB quota is
+  # exhausted (497/500 GB), and standard-rwo is pd-balanced which counts against
+  # that same quota - new volumes simply fail to provision. pd-standard draws on
+  # DISKS_TOTAL_GB instead (4 TB free). Swap back once the SSD quota is raised.
+  storageClass: standard
+  # Official postgres image layout.
+  mountPath: /var/lib/postgresql/data
+  dataDir: /var/lib/postgresql/data/pgdata
+  fsGroup: 999
+  runAsUser: 999
+  # Password always comes from a Secret; never put one in this file.
+  existingSecret: postgres-trades
+  existingSecretPasswordKey: POSTGRES_PASSWORD
 
 # ── Vault (secrets injection) ──
 vault:
-  enabled: false
-  role: plumber
-  secretPath: "KV/data/Plumber"
+  enabled: true
+  role: trades
+  secretPath: "KV/data/Trades"
 
 # ── Backend (booking service) ──
 backend:
-  image: "192.168.0.17:5000/repository/plumber-be"
+  image: "us-central1-docker.pkg.dev/beo-crm-3c9771fd/beo-docker/trades-be"
   servicePort: 80
   targetPort: 8000
 
 # ── Frontend ──
 frontend:
-  image: "192.168.0.17:5000/repository/plumber-fe"
+  image: "us-central1-docker.pkg.dev/beo-crm-3c9771fd/beo-docker/trades-fe"
   servicePort: 80
   targetPort: 80
 
 # ── Istio ──
 istio:
   enabled: true
-  gatewayName: plumber-https-gw
-  gatewayNamespace: istio-ingress
+  # The Gateway is owned by helm-chart-keycloak (istio-system/omnirai-auth-gw).
+  # Never create a second gateway for the same host:443 here - it breaks routing.
+  createGateway: false
+  gatewayName: omnirai-auth-gw
+  gatewayNamespace: istio-system
   host: "plumber.omnirai.ai"
-  credentialName: "plumber-tls"
+  credentialName: "omnirai-apps-plumber-tls"
 
 resources:
   requests:

@@ -1,6 +1,6 @@
 apiVersion: v2
-name: plumber
-description: Plumber (omnirai) booking/platform SaaS - backend, frontend (reuses existing postgres)
+name: trades
+description: Trade by omnirai - multi-trade booking/platform SaaS on GKE (FastAPI backend, React frontend, per-namespace Postgres)
 type: application
 version: 1.0.0
 appVersion: 1.0.0

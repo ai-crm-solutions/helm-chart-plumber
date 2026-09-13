@@ -16,27 +16,34 @@ spec:
         app: postgres
     spec:
       securityContext:
-        fsGroup: 1001
+        fsGroup: {{ .Values.postgresql.fsGroup }}
       containers:
         - name: postgresql
           image: {{ .Values.postgresql.image }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
-            runAsUser: 1001
+            runAsUser: {{ .Values.postgresql.runAsUser }}
           env:
             - name: POSTGRES_DB
               value: {{ .Values.postgresql.database }}
             - name: POSTGRES_USER
               value: {{ .Values.postgresql.username }}
             - name: POSTGRES_PASSWORD
-              value: {{ .Values.postgresql.password }}
+              {{- if .Values.postgresql.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.existingSecret }}
+                  key: {{ .Values.postgresql.existingSecretPasswordKey | default "POSTGRES_PASSWORD" }}
+              {{- else }}
+              value: {{ .Values.postgresql.password | quote }}
+              {{- end }}
             - name: PGDATA
-              value: /bitnami/postgresql/data
+              value: {{ .Values.postgresql.dataDir }}
           ports:
             - containerPort: 5432
           volumeMounts:
             - name: data
-              mountPath: /bitnami/postgresql
+              mountPath: {{ .Values.postgresql.mountPath }}
           readinessProbe:
             exec:
               command: ["sh", "-c", "pg_isready -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }}"]
@@ -47,7 +54,9 @@ spec:
         name: data
       spec:
         accessModes: ["ReadWriteOnce"]
+        {{- if .Values.postgresql.storageClass }}
         storageClassName: {{ .Values.postgresql.storageClass }}
+        {{- end }}
         resources:
           requests:
             storage: {{ .Values.postgresql.storageSize }}
