@@ -34,8 +34,9 @@ spec:
           {{`export DATABASE_URL="{{ .Data.data.DATABASE_URL }}"`}}
           # Must default to false: the backend's verify_token() treats DEBUG + no
           # Authorization header as a valid anonymous user (mock dev-admin
-          # claims), which is an auth bypass in production.
-          {{`export DEBUG="{{ .Data.data.DEBUG | default "false" }}"`}}
+          # claims), which is an auth bypass in production. NOTE: this Vault
+          # Agent's Consul Template has no `default` function - use if/else.
+          {{`export DEBUG="{{ if .Data.data.DEBUG }}{{ .Data.data.DEBUG }}{{ else }}false{{ end }}"`}}
           {{`export KEYCLOAK_URL="{{ .Data.data.KEYCLOAK_URL }}"`}}
           {{`export KEYCLOAK_REALM="{{ .Data.data.KEYCLOAK_REALM }}"`}}
           {{`export KEYCLOAK_CLIENT_ID="{{ .Data.data.KEYCLOAK_CLIENT_ID }}"`}}
