@@ -105,8 +105,11 @@ istio:
   createGateway: false
   gatewayName: omnirai-auth-gw
   gatewayNamespace: istio-system
-  host: "plumber.omnirai.ai"
-  credentialName: "omnirai-apps-plumber-tls"
+  # Prod host is trade.omnirai.ai (multi-trade branding); plumber.omnirai.ai DNS
+  # was retired and its record deleted. The matching Certificate lives in
+  # helm-chart-keycloak -> authHost.appCertificates (omnirai-apps-trade).
+  host: "trade.omnirai.ai"
+  credentialName: "omnirai-apps-trade-tls"
 
 resources:
   requests:

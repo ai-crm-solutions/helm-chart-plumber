@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────────────────────
 # Deploy Plumber (omnirai) platform to namespace "plumber"
-# Host: plumber.omnirai.ai (via Cloudflare tunnel)
+# Host: trade.omnirai.ai (via Cloudflare tunnel)
 # NOTE: reuses the existing postgres StatefulSet in ns plumber (bundled postgres disabled).
 # ──────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
@@ -21,7 +21,7 @@ echo ""
 echo "==> ✅ Deployment complete!"
 echo ""
 echo "    Namespace: ${NAMESPACE}"
-echo "    Site:      https://plumber.omnirai.ai"
+echo "    Site:      https://trade.omnirai.ai"
 echo "    Gateway:   plumber-https-gw (istio-ingress)"
 echo ""
-echo "    DNS: add CNAME plumber.omnirai.ai -> <tunnel>.cfargotunnel.com (proxied)"
+echo "    DNS: add CNAME trade.omnirai.ai -> <tunnel>.cfargotunnel.com (proxied)"

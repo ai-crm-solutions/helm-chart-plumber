@@ -38,7 +38,7 @@ istio:
   enabled: true
   gatewayName: plumber-https-gw
   gatewayNamespace: istio-ingress
-  host: "plumber.omnirai.ai"
+  host: "trade.omnirai.ai"
   credentialName: "plumber-tls"
 
 resources:

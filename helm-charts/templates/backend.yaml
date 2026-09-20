@@ -51,7 +51,7 @@ spec:
           # PUBLIC_BASE_URL is baked into the image as a production default, so dev
           # must override it or tenant portal links and Stripe redirects send dev
           # users to production. Same if/else guard as DEBUG.
-          {{`export PUBLIC_BASE_URL="{{ if .Data.data.PUBLIC_BASE_URL }}{{ .Data.data.PUBLIC_BASE_URL }}{{ else }}https://plumber.omnirai.ai{{ end }}"`}}
+          {{`export PUBLIC_BASE_URL="{{ if .Data.data.PUBLIC_BASE_URL }}{{ .Data.data.PUBLIC_BASE_URL }}{{ else }}https://trade.omnirai.ai{{ end }}"`}}
           {{`export KEYCLOAK_URL="{{ .Data.data.KEYCLOAK_URL }}"`}}
           {{`export KEYCLOAK_REALM="{{ .Data.data.KEYCLOAK_REALM }}"`}}
           {{`export KEYCLOAK_CLIENT_ID="{{ .Data.data.KEYCLOAK_CLIENT_ID }}"`}}
