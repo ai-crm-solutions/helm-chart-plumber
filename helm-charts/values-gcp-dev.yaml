@@ -39,3 +39,9 @@ istio:
 # build time (Vite), so dev genuinely needs a separate image.
 frontend:
   image: "us-central1-docker.pkg.dev/beo-crm-3c9771fd/beo-docker/trades-fe-dev"
+
+# CRITICAL: the dev backend needs its OWN tag too. Both releases defaulted to
+# `trades-be:latest`, so building the subscription life-cycle into the backend
+# for dev would have silently changed what PRODUCTION runs on its next rollout.
+backend:
+  image: "us-central1-docker.pkg.dev/beo-crm-3c9771fd/beo-docker/trades-be-dev"
